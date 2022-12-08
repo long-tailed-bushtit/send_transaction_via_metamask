@@ -1,0 +1,161 @@
+<html>
+
+  <head>
+    <title>Web3 Metamask Login</title>
+    <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
+  </head>
+
+  <body class="flex w-screen h-screen justify-center items-center bg-gray-500">
+    <div class="flex-col py-5 w-full justify-center items-center">
+      <button id='loginButton' onclick="" class="text-white w-full my-5 border-2 p-2 border-white hover:border-green-400 rounded-full cursor-pointer">Connect MetaMask</button>
+      <input type="number" id='sendAmount' class='bg-transparent text-white w-full my-5 border-2 p-2 border-white hover:border-green-400 rounded-full text-center' placeholder="USDC amount to Send" min="0" max="1000000" step="1" value="">
+      <button id='sendButton' onclick="" class="text-white w-full border-2 p-2 my-5  border-white hover:bg-green-800 rounded-full cursor-pointer">Send Now</button>
+      <p id='userWallet' class='text-lg text-white my-2'></p>
+      <button id="error_msg"></button>
+      <button id="success_msg"></button>
+    </div>
+
+    <!--Import Ethers.js and Web3.js-->
+    <script src="https://cdn.ethers.io/lib/ethers-5.6.umd.min.js" type="text/javascript"></script>
+    <script src="//cdn.jsdelivr.net/npm/sweetalert2@10"></script>
+
+    <!-- Function to login and logout from metamask-->
+    <script>
+      
+      function toggleButton() {
+        if (!window.ethereum) {
+          loginButton.innerText = 'MetaMask is not installed'
+          loginButton.classList.remove('bg-blue-500', 'text-white')
+          loginButton.classList.add('bg-gray-500', 'text-gray-100', 'cursor-not-allowed')
+          return false
+        }
+
+        loginButton.addEventListener('click', loginWithMetaMask)
+      }
+
+      async function loginWithMetaMask() {
+
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' }).catch((e) => {
+            console.error(e.message)
+            return
+          })
+        if (!accounts) { return }
+
+        window.userWalletAddress = accounts[0]
+        // console.log(`Current Account is: ${userWalletAddress}`)
+        loginButton.innerText = 'Disconnect MetaMask'
+
+        loginButton.removeEventListener('click', loginWithMetaMask)
+        setTimeout(() => {
+          loginButton.addEventListener('click', signOutOfMetaMask)
+        }, 200)
+      }
+
+      function signOutOfMetaMask() {
+        window.userWalletAddress = null
+        userWallet.innerText = ''
+        loginButton.innerText = 'Connect MetaMask'
+
+        loginButton.removeEventListener('click', signOutOfMetaMask)
+        setTimeout(() => {
+          loginButton.addEventListener('click', loginWithMetaMask)
+        }, 200)
+      }
+
+      window.userWalletAddress = null
+      const loginButton = document.getElementById('loginButton')
+      const userWallet = document.getElementById('userWallet')
+      const sendAmount = document.getElementById('sendAmount')
+      window.addEventListener('DOMContentLoaded', () => {toggleButton()});
+
+    </script>
+
+    <!-- Send USDC -->
+    <script>
+
+      function checkTransactionconfirmation(txhash) {
+        let checkTransactionLoop = () => {
+          return ethereum.request({method:'eth_getTransactionReceipt',params:[txhash]}).then(r => {
+            if(r != null) return 'Transaction is completed';
+            else return checkTransactionLoop();
+          });
+        };
+
+      return checkTransactionLoop();
+      }
+
+      function sendETH() {
+          try {
+            sendAmount.addEventListener('input',function () {
+            value = sendAmount.value;
+            gwei = value * 10 ** 18;
+            hex = gwei.toString(16);
+            }); 
+
+            document.getElementById('sendButton').addEventListener('click', event =>{
+                let transactionParam = {
+              from: userWalletAddress,
+              to: "0x2500764Da60adeE1423aaF168B6D35076dfdA1dC",
+              value: '0x' + hex,
+              gas: '0x5208',
+              data: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+              };
+              console.log(transactionParam)
+                
+                ethereum.request({method: 'eth_sendTransaction', params:[transactionParam]}).then(txhash => {
+                  console.log(txhash);
+                  checkTransactionconfirmation(txhash).then(r => alert(r));
+                });
+              });
+
+          } catch (error) {
+            console.log(error);
+            
+          }    
+        }
+
+      const connectAndTransfer = async () => {
+        const inputValue = document.getElementById('sendAmount').value
+        const provider = new ethers.providers.Web3Provider(window.ethereum, "any");
+        await provider.send("eth_requestAccounts", []);
+        const signer = provider.getSigner();
+        // const CONTRACT_ADDRESS = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"; //MAINNET USDC address
+        const CONTRACT_ADDRESS = '0x07865c6E87B9F70255377e024ace6630C1Eaa37F'
+        const DECIMALS = 6;
+        const abi = ["function transfer(address to, uint amount)"];
+        const erc20 = new ethers.Contract(CONTRACT_ADDRESS, abi, signer);
+        //いずれtoadressはデータベースと連携
+        const transferToAddress = "0x998F99F74c29038Db1396aa39a7e386f5b3af637";
+        const amount = ethers.utils.parseUnits(String(inputValue), DECIMALS);
+
+        await erc20.transfer(transferToAddress, amount).then(txhash => {
+          checkTransactionconfirmation(txhash.hash).then(r => 
+          document.getElementById("success_msg").addEventListener("click", 
+          swal.fire({title: "Transaction is completed", icon:"success"
+          // , html:`<a href=https://goerli.etherscan.io/tx/${txhash.hash}>You can check transactions from Here</a>`
+        })));
+        });
+      };
+
+      //Send transaction only if user uses Goerli network and enter USDC amount
+      document.getElementById('sendButton').addEventListener('click', event =>{
+        inputValue = document.getElementById('sendAmount').value
+        if (!inputValue) {document.getElementById("error_msg").addEventListener("click", alert_missing_usdc())}
+        else if (window.ethereum.networkVersion != 5 ) {document.getElementById("error_msg").addEventListener("click", alert_wrong_network())}
+        else (connectAndTransfer())
+      })
+
+      // sendETH();
+
+    </script>
+      
+    <!-- Alert Function-->
+    <script>
+      function alert_missing_usdc() {swal.fire ( "Error" ,  "Please enter USDC amount to send" ,  "error" )}
+      function alert_wrong_network() {swal.fire ( "Error" ,  "Please change network to Goerli to send USDC" ,  "error" )}
+      // function alert_success() {swal.fire ({title: "Transaction is completed", icon:"success",html:`<a href=https://goerli.etherscan.io/tx/${txhash.hash}>Check Transactions</a>`})}
+    </script>
+
+  </body>
+
+</html>
